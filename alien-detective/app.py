@@ -774,19 +774,41 @@ def page_results():
     """, unsafe_allow_html=True)
 
     if result:
+        import re as _re, json as _json
+
+        def _safe_text(val):
+            """Return display-safe text — strip raw JSON if it leaked through."""
+            if not val:
+                return "No evaluation available."
+            text = str(val).strip()
+            # If it looks like JSON, try to extract explanation/reveal fields
+            if text.startswith("{"):
+                try:
+                    obj = _json.loads(text)
+                    return obj.get("explanation") or obj.get("reveal") or text
+                except Exception:
+                    pass
+                # Strip JSON noise and return remaining prose
+                clean = _re.sub(r'\{.*?\}', '', text, flags=_re.DOTALL).strip()
+                return clean if clean else "Evaluation processed."
+            return text
+
+        explanation = _safe_text(result.get("explanation", ""))
+        reveal      = _safe_text(result.get("reveal", ""))
+
         col_a, col_b = st.columns(2)
         with col_a:
             st.markdown(f"""
             <div class='theory-box'>
                 <div class='section-title'>ARIA's Evaluation</div>
-                <p>{result.get('explanation','')}</p>
+                <p>{explanation}</p>
             </div>
             """, unsafe_allow_html=True)
         with col_b:
             st.markdown(f"""
             <div class='theory-box' style='border-color:#00e5ff44'>
                 <div class='section-title'>The Truth Revealed</div>
-                <p style='color:#a8d8ea'>{result.get('reveal','')}</p>
+                <p style='color:#a8d8ea'>{reveal}</p>
             </div>
             """, unsafe_allow_html=True)
 
