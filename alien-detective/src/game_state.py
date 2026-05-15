@@ -197,14 +197,17 @@ def build_evidence_summary() -> dict:
     cluster_coords = "unknown"
 
     if df_c is not None:
-        anomaly_count = int((df_c.get("signal_class", df_c.get("predicted_class", [])) == "Anomaly").sum())
-        # Try to find anomaly cluster centroid
-        if "kmeans_cluster" in df_c.columns:
-            anomaly_rows = df_c[df_c.get("signal_class", df_c.get("predicted_class", [])) == "Anomaly"]
-            if not anomaly_rows.empty:
-                cx = anomaly_rows["sector_x"].mean()
-                cy = anomaly_rows["sector_y"].mean()
-                cluster_coords = f"({cx:.1f}, {cy:.1f})"
+        # Determine which column holds the class label
+        class_col = "signal_class" if "signal_class" in df_c.columns else "predicted_class"
+        if class_col in df_c.columns:
+            anomaly_count = int((df_c[class_col] == "Anomaly").sum())
+            # Try to find anomaly cluster centroid
+            if "kmeans_cluster" in df_c.columns:
+                anomaly_rows = df_c[df_c[class_col] == "Anomaly"]
+                if not anomaly_rows.empty:
+                    cx = anomaly_rows["sector_x"].mean()
+                    cy = anomaly_rows["sector_y"].mean()
+                    cluster_coords = f"({cx:.1f}, {cy:.1f})"
 
     metrics = st.session_state.get("classifier_metrics") or {}
     return {

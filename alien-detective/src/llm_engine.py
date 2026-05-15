@@ -13,13 +13,17 @@ Responsibilities
 import ollama
 import json
 import re
+import threading
 from typing import Optional
 
 # Default model — user can override via .env or the game settings page
 DEFAULT_MODEL = "llama3.2"
 
 # Fallback response when Ollama is unavailable
-_FALLBACK_PREFIX = "[OFFLINE MODE] Ollama not running. "
+_FALLBACK_PREFIX = "[OFFLINE MODE] "
+
+# Hard timeout (seconds) for any LLM call — prevents UI from hanging
+_LLM_TIMEOUT = 15
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -32,48 +36,80 @@ def _chat(system_prompt: str, user_prompt: str,
           max_tokens: int = 512) -> str:
     """
     Single-turn chat with the local Ollama model.
+    Enforces a hard timeout so the UI never hangs.
     Returns the response text or a fallback string on failure.
     """
-    try:
-        response = ollama.chat(
-            model=model,
-            messages=[
-                {"role": "system",  "content": system_prompt},
-                {"role": "user",    "content": user_prompt},
-            ],
-            options={
-                "temperature": temperature,
-                "num_predict": max_tokens,
-            },
-        )
-        return response["message"]["content"].strip()
-    except Exception as e:
+    result = [None]
+    error  = [None]
+
+    def _call():
+        try:
+            response = ollama.chat(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                options={
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+            )
+            result[0] = response["message"]["content"].strip()
+        except Exception as e:
+            error[0] = e
+
+    t = threading.Thread(target=_call, daemon=True)
+    t.start()
+    t.join(timeout=_LLM_TIMEOUT)
+
+    if result[0] is not None:
+        return result[0]
+
+    if error[0] is not None:
         return (
-            f"{_FALLBACK_PREFIX}"
-            f"Start Ollama with `ollama serve` and pull a model with "
-            f"`ollama pull llama3.2`.\n\nError: {e}"
+            f"{_FALLBACK_PREFIX}ARIA offline — start Ollama: "
+            f"`ollama serve` then `ollama pull llama3.2`. ({error[0]})"
         )
+
+    # Timed out
+    return (
+        f"{_FALLBACK_PREFIX}ARIA response timed out after {_LLM_TIMEOUT}s. "
+        "Make sure Ollama is running and the model is pulled."
+    )
 
 
 def check_ollama_available(model: str = DEFAULT_MODEL) -> tuple[bool, str]:
     """
     Returns (is_available: bool, message: str).
-    Tries a tiny ping request to Ollama.
+    Tries a tiny ping request to Ollama with a 5s timeout.
     """
-    try:
-        models = ollama.list()
-        names = [m.get("name", "") for m in models.get("models", [])]
-        if not names:
-            return False, "Ollama is running but no models are pulled. Run: `ollama pull llama3.2`"
-        if not any(model in n for n in names):
-            return False, (
-                f"Model '{model}' not found. "
-                f"Available: {', '.join(names)}. "
-                f"Run: `ollama pull {model}`"
-            )
-        return True, f"Ollama ready — using model: {model}"
-    except Exception as e:
-        return False, f"Ollama not reachable. Start it with: `ollama serve`\n({e})"
+    result = [None]
+
+    def _check():
+        try:
+            models = ollama.list()
+            names = [m.get("name", "") for m in models.get("models", [])]
+            if not names:
+                result[0] = (False, "Ollama running but no models pulled. Run: `ollama pull llama3.2`")
+                return
+            if not any(model in n for n in names):
+                result[0] = (False,
+                    f"Model '{model}' not found. "
+                    f"Available: {', '.join(names)}. "
+                    f"Run: `ollama pull {model}`")
+                return
+            result[0] = (True, f"ARIA Online — model: {model}")
+        except Exception as e:
+            result[0] = (False, f"Ollama not reachable. Run: `ollama serve`\n({e})")
+
+    t = threading.Thread(target=_check, daemon=True)
+    t.start()
+    t.join(timeout=5)
+
+    if result[0] is None:
+        return False, "Ollama check timed out. Is the Ollama app running?"
+    return result[0]
 
 
 # ══════════════════════════════════════════════════════════════════════════════

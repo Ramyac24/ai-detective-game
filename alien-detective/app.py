@@ -442,7 +442,9 @@ def page_classify():
 def page_cluster():
     _mission_header("cluster")
 
-    df = gs.get("df_classified") or gs.get("dataset")
+    df = gs.get("df_classified")
+    if df is None:
+        df = gs.get("dataset")
     if df is None:
         st.warning("Complete the Classification mission first.")
         return
@@ -520,7 +522,9 @@ def page_cluster():
 def page_clue_decoder():
     _mission_header("clue_decoder")
 
-    df = gs.get("df_classified") or gs.get("dataset")
+    df = gs.get("df_classified")
+    if df is None:
+        df = gs.get("dataset")
     if df is None:
         st.warning("Complete earlier missions first.")
         return
@@ -615,7 +619,11 @@ def page_clue_decoder():
 def page_case_board():
     _mission_header("case_board")
 
-    df = gs.get("df_clustered") or gs.get("df_classified") or gs.get("dataset")
+    df = gs.get("df_clustered")
+    if df is None:
+        df = gs.get("df_classified")
+    if df is None:
+        df = gs.get("dataset")
     if df is None:
         st.warning("Complete earlier missions first.")
         return
