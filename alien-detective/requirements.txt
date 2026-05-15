@@ -1,0 +1,22 @@
+# AI-Powered Data Detective: ML Mystery Game
+# Requirements for macOS (MacBook Air)
+
+# Core UI
+streamlit==1.35.0
+
+# Data processing
+pandas==2.2.2
+numpy==1.26.4
+
+# Machine Learning
+scikit-learn==1.5.0
+joblib==1.4.2
+
+# Visualizations
+plotly==5.22.0
+
+# Local LLM via Ollama
+ollama==0.2.1
+
+# Utilities
+python-dotenv==1.0.1
